@@ -21,7 +21,7 @@
 #include<pthread.h>
 #include<netdb.h>
 #include<string.h>
-#include "chat.h"
+#include "message.h"
 
 #define NUM_OF_USERS 10 //total number of users that can be register
 #define MAX_USERS 50
