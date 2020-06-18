@@ -1,13 +1,3 @@
-/*
- * chats.c
- *
- *  Created on: Jun 6, 2017
- *      Author: Eran Peled
- *
- *      This File is the implement of the "Server"
- *      During this exercise the server is a kind of "DB" he is responsible keeping records of users in the system
- *      and provide a list of current connected users to the system to any given client.
- */
 #include<pthread.h>
 #include<sys/socket.h>
 #include<sys/types.h>
@@ -28,13 +18,11 @@
 
 
 void *handlePacket(void *args);
-void user_add(unsigned int ip, short port, packet pkt);
-void user_delete(msg_down_t* msg);
-void list_peer(unsigned int ip, short port, char filename[]);
-void selectPeerToConnect();
+void user_add(struct sockaddr_in client, packet pkt);
+void list_peer(struct sockaddr_in client, packet recv_pkt);
 
 static unsigned int users_count = 0;
-static msg_peer_t *listOfUsers[MAX_USERS] = {0}; //global array of connected users to the system. notice the {0}initializer it is very important!
+static peer listOfPeerFiles[MAX_FILES]; //global array of connected users to the system. notice the {0}initializer it is very important!
 static int port_cnt = 0;
 
 
@@ -43,6 +31,8 @@ pthread_mutex_t stdout_lock;
 
 int main(int argc, char*argv[]) //***check all if for exit the program or not.
 {
+
+    memset(listOfPeerFiles,0,MAX_FILES*sizeof(peer));
 
     /*Define vars for communication*/
     int client_fd;
@@ -53,14 +43,14 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
     char *hostaddrp;
 
     /*******************************/
-    fprintf(stderr, "Starting server on port: %d\n", C_SRV_PORT);
-    //Create socket for IPv4
     socket_fd = socket(AF_INET, SOCK_DGRAM, 0);   //SOCK stream used for TCP Connections
-    if (socket_fd < 0)
+    if (socket_fd == -1)
     {
-        printf("Could not create socket, there is something wrong with your system");
+        printf("[error] - Não foi possível criar o soquete, há algo errado com o seu sistema :(");
+        return 1;
     }
-    puts("Created socket");
+
+    puts("Socket criado");
 
     //clear! and Prepare the sockaddr_in structure
     // bzero((char *) &serv_sck, sizeof(serv_sck));
@@ -74,22 +64,21 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
     if( bind(socket_fd,(struct sockaddr *)&serv_sck, sizeof(serv_sck)) < 0)
     {
         //print the error message
-        perror("bind failed. Error");
+        perror("[error] - Falha ao bindar socket :(");
         return 1;
     }
-    puts("bind done");
+    puts("Bind concluída");
 
-    puts("Waiting For Clients...");
+    puts("Tudo certo, aguardando conexões...");
     int clientlen = sizeof(client_sock);
     packet recv_pkt;
     while(1)
     {
+        memset(&client_sock, 0, sizeof(client_sock));
         n = recvfrom(socket_fd, &recv_pkt, sizeof(recv_pkt), 0, (struct sockaddr *)&client_sock, &clientlen);
-        if(n == -1)
+        if(n < 0)
         {
-            pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s", "erro ao receber pacote, ignorando");
-            pthread_mutex_unlock(&stdout_lock);
+ 			perror("[error] Ao tentar acertar o pacote :(");
         }
         else
         {
@@ -98,26 +87,23 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
             hostaddrp = inet_ntoa(client_sock.sin_addr);
             if(hostaddrp == NULL)
                 return 1;
+            puts("Conexão com cliente aceita!");
             switch(recv_pkt.header.type)
             {
             case 'l':
-                pthread_mutex_lock(&stdout_lock);
-                printf("Enviando ao cliente (%s:%d) a lista de usuários que possuem o arquivo: (%s)\n", hostaddrp, port, recv_pkt.payload);
-                pthread_mutex_unlock(&stdout_lock);
-                list_peer(ip, port, recv_pkt.payload);
+                list_peer(client_sock, recv_pkt);
                 break;
             case 'a':
-
-                user_add(ip, port, recv_pkt);
+                user_add(client_sock, recv_pkt);
                 break;
             default:
-                pthread_mutex_lock(&stdout_lock);
                 fprintf(stderr, "%s", "erro ao receber pacote, ignorando");
-                pthread_mutex_unlock(&stdout_lock);
                 break;
             }
         }
     }
+
+    close(n);
 
     return 0;
 }
@@ -134,24 +120,67 @@ struct sockaddr_in get_sockaddr_in(unsigned int ip, short port)
     return addr;
 }
 
-void user_add(unsigned int ip, short port, packet pkt){
-
-
-}
-
-void list_peer(unsigned int ip, short port, char filename[1000])
+void user_add(struct sockaddr_in client, packet p_pkt)
 {
+
     packet pkt;
-    pkt.header.type = 'l';
+    pkt.header.type = 'a';
     pkt.header.error = '\0';
 
-    pthread_mutex_lock(&stdout_lock);
-    fprintf(stderr, "Enviando ao cliente (%s:%d) a lista de usuários\n", filename, 333);
-    pthread_mutex_unlock(&stdout_lock);
+
+    unsigned int ip = client.sin_addr.s_addr;
+    int port = ntohs(client.sin_port);
+
+    int i;
+    peer p;
+    int flag = 0;
+
+    for(int i = 0; i < MAX_FILES; i++)
+    {
 
 
+        if(listOfPeerFiles[i].ip == 0)
+        {
+
+            strcpy(p.filename, p_pkt.header.filename);
+            p.port = port;
+            p.ip = inet_ntoa(client.sin_addr);
+            listOfPeerFiles[i] = p;
+            printf("[%d]\t-\t File : %s\n\n",i,listOfPeerFiles[i].filename);
+            printf("[%d]\t-\t Ip : %s\n\n",i,listOfPeerFiles[i].ip);
+            printf("[%d]\t-\t Port : %d\n\n",i,listOfPeerFiles[i].port);
+            break;
+        }
+
+    }
 
     struct sockaddr_in peer_addr = get_sockaddr_in(ip, port);
+    int status = sendto(socket_fd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
+    if (status < 0)
+    {
+        perror("[error] - Erro ao enviar pacote para o peer");
+    }
+}
+
+void list_peer(struct sockaddr_in client_sock, packet recv_pkt)
+{
+    unsigned int ip = client_sock.sin_addr.s_addr;
+    int port = ntohs(client_sock.sin_port);
+    char *hostaddrp = inet_ntoa(client_sock.sin_addr);
+
+    pthread_mutex_lock(&stdout_lock);
+    printf("Enviando ao cliente (%s:%d) a lista de usuários que possuem o arquivo: (%s)\n", hostaddrp, port, recv_pkt.msg);
+    pthread_mutex_unlock(&stdout_lock);
+
+    packet pkt;
+    pkt.header.type = 'l';
+    pkt.header.error = 'e';
+
+    struct sockaddr_in peer_addr = get_sockaddr_in(ip, port);
+
+    int i;
+    int flag = 0;
+
     int status = sendto(socket_fd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
     if (status == -1)
     {
@@ -161,6 +190,5 @@ void list_peer(unsigned int ip, short port, char filename[1000])
     }
 
 }
-
 
 
