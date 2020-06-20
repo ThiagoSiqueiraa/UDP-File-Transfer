@@ -75,10 +75,11 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
     while(1)
     {
         memset(&client_sock, 0, sizeof(client_sock));
+        memset(&recv_pkt, 0, sizeof(recv_pkt));
         n = recvfrom(socket_fd, &recv_pkt, sizeof(recv_pkt), 0, (struct sockaddr *)&client_sock, &clientlen);
         if(n < 0)
         {
- 			perror("[error] Ao tentar acertar o pacote :(");
+            perror("[error] Ao tentar acertar o pacote :(");
         }
         else
         {
@@ -142,13 +143,13 @@ void user_add(struct sockaddr_in client, packet p_pkt)
         if(listOfPeerFiles[i].ip == 0)
         {
 
-            strcpy(p.filename, p_pkt.header.filename);
+            strcpy(p.filename, p_pkt.msg);
             p.port = port;
             p.ip = inet_ntoa(client.sin_addr);
             listOfPeerFiles[i] = p;
-            printf("[%d]\t-\t File : %s\n\n",i,listOfPeerFiles[i].filename);
-            printf("[%d]\t-\t Ip : %s\n\n",i,listOfPeerFiles[i].ip);
-            printf("[%d]\t-\t Port : %d\n\n",i,listOfPeerFiles[i].port);
+            printf("[%d]\t-\t Arquivo : %s\n\n",i,listOfPeerFiles[i].filename);
+            printf("[%d]\t-\t IP : %s\n\n",i,listOfPeerFiles[i].ip);
+            printf("[%d]\t-\t Porta : %d\n\n",i,listOfPeerFiles[i].port);
             break;
         }
 
@@ -168,20 +169,46 @@ void list_peer(struct sockaddr_in client_sock, packet recv_pkt)
     int port = ntohs(client_sock.sin_port);
     char *hostaddrp = inet_ntoa(client_sock.sin_addr);
 
-    pthread_mutex_lock(&stdout_lock);
     printf("Enviando ao cliente (%s:%d) a lista de usuários que possuem o arquivo: (%s)\n", hostaddrp, port, recv_pkt.msg);
-    pthread_mutex_unlock(&stdout_lock);
 
     packet pkt;
     pkt.header.type = 'l';
-    pkt.header.error = 'e';
+    pkt.header.error = '\0';
 
     struct sockaddr_in peer_addr = get_sockaddr_in(ip, port);
 
-    int i;
     int flag = 0;
 
+    char *list_entry_format = (char *)"Peer[%d]: %s:%d\n";
+    int list_entry_size = sizeof (char*) + sizeof(int) + (sizeof(int)) + strlen(list_entry_format);
+    int list_size = MAX_FILES*list_entry_size;
+    char *list_entry = (char *)malloc(list_entry_size);
+    char *list = (char *)malloc(list_size);
+    unsigned int i;
+    char *list_i = list;
+
+    for(i = 0; i < MAX_FILES; i++)
+    {
+        if(strcmp(listOfPeerFiles[i].filename, recv_pkt.msg) == 0 && listOfPeerFiles[i].port != port){
+                flag = 1;
+                sprintf(list_entry, list_entry_format, i, listOfPeerFiles[i].ip, listOfPeerFiles[i].port);
+                strcat(list_i, list_entry);
+                list_i += strlen(list_i);
+
+        }
+    }
+
+
+    if(flag == 0)
+    {
+        pkt.header.error = 'e';
+    }
+    else
+    {
+        strcpy(pkt.msg, list);
+    }
     int status = sendto(socket_fd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
+
     if (status == -1)
     {
         pthread_mutex_lock(&stdout_lock);
