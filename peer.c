@@ -7,13 +7,13 @@
 ╚██████╔╝██║ ╚████║██║██║     ███████╗██║              ██║     ███████╗███████╗██║  ██║██╗╚██████╗
  ╚═════╝ ╚═╝  ╚═══╝╚═╝╚═╝     ╚══════╝╚═╝              ╚═╝     ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
 Trabalho desenvolvido por:
-Thiago Donizeti Siqueira - 2018012355
-João Pedro Josué -
-João Guilherme -
+THIAGO DONIZETI SIQUEIRA : 2018012355
+JOÃO PEDRO JOSUÉ : 2018011044
+JOÃO GUILHERME TERTULIANO DE OLIVEIRA : 2019000706
 
 Instruções de uso em: https://github.com/ThiagoSiqueiraa/UDP-File-Transfer
 
-
+ou também em README.TXT
 
 ***/
 
@@ -32,13 +32,12 @@ Instruções de uso em: https://github.com/ThiagoSiqueiraa/UDP-File-Transfer
 #include "message.h"
 #include <math.h>
 
+/** VARIAVEIS GLOBAIS **/
 int sock;
 struct sockaddr_in tracker_addr;
 struct sockaddr_in self_addr;
 struct sockaddr_in peer_addr;
-
 pthread_mutex_t stdout_lock;
-
 
 /** === PRÓTOTIPOS DAS FUNÇÕES == **/
 void * read_input(void *ptr);
@@ -63,37 +62,30 @@ int main(int argc, char **argv)
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0)
     {
-        fprintf(stderr, "%s\n", "[error] - erro ao criar socket.");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao criar socket.\n");
         abort();
     }
 
-    /*setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,(char*)&timeout,sizeof(timeout));*/
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout)) < 0)
+    {
+        perror("\n[ERRO] - Erro ao configurar o socket.\n");
+    }
 
     configure();
 
     if (bind(sock, (struct sockaddr *)&self_addr, sizeof(self_addr)))
     {
-        fprintf(stderr, "%s\n", "[erro] - error ao bindar.");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao bindar.\n");
         abort();
     }
 
-    // create a thread to read user input
+    //criar thread para ler as entradas do usuário
     pthread_t input_thread;
     pthread_create(&input_thread, NULL, read_input, NULL);
     pthread_detach(input_thread);
 
     receive_packet();
 }
-
-struct sockaddr_in get_sockaddr_in(unsigned int ip, short port)
-{
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = ip;
-    addr.sin_port = htons(port);
-    return addr;
-}
-
 
 void configure()
 {
@@ -104,7 +96,7 @@ void configure()
     tracker_addr.sin_family = AF_INET;
     if (inet_aton("127.0.0.1", &tracker_addr.sin_addr) == 0)
     {
-        fprintf(stderr, "%s\n", "error - error parsing tracker ip.");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao vincular o ip do rastreador (tracker).\n");
         abort();
     }
     tracker_addr.sin_port = htons(SRV_PORT);
@@ -130,14 +122,14 @@ void * read_input(void *ptr)
             break;
         case 'a':
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "Qual o arquivo você deseja adicionar ao rastreador?");
+            fprintf(stderr, "%s\n", "[?] - Qual o arquivo você deseja adicionar ao rastreador?\n");
             pthread_mutex_unlock(&stdout_lock);
             scanf(" %[^\n]s",filename);
             add_file_tracker(filename);
             break;
         default:
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "[erro] - tipo de requisição inválida.");
+            fprintf(stderr, "%s\n", "[ERRO] - Tipo de requisição inválida.\n");
             pthread_mutex_unlock(&stdout_lock);
             break;
         }
@@ -158,18 +150,17 @@ void add_file_tracker(char filename[FILENAME_MAX])
         pkt.header.error = '\0';
         strcpy(pkt.msg, filename);
 
-        // send packet to tracker
         int status = sendto(sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&tracker_addr, sizeof(struct sockaddr_in));
         if (status < -1)
         {
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "error - error sending packet to tracker");
+            fprintf(stderr, "%s\n", "[ERRO] - Erro ao enviar pacote ao rastreador.\n");
             pthread_mutex_unlock(&stdout_lock);
         }
     }
     else
     {
-        printf("Não foi encontrar o arquivo, tente novamente.\n");
+        printf("[AVISO] Não foi possível encontrar o arquivo, tente novamente.\n");
         return;
     }
 
@@ -193,12 +184,15 @@ void receive_packet()
         if (status < 0)
         {
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "[erro] - erro ao receber pacote, ignorando.");
+            fprintf(stderr, "%s\n", "[ERRO] - Erro ao receber pacote, ignorando.\n");
             num_tries++;
             pthread_mutex_unlock(&stdout_lock);
             continue;
         }
-        num_tries = 0;
+        else
+        {
+            num_tries = 0;
+        }
 
         switch (pkt.header.type)
         {
@@ -207,7 +201,7 @@ void receive_packet()
             break;
         case 'a':
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "O rastreador adicionou o seu arquivo com sucesso!");
+            fprintf(stderr, "%s\n", "[AVISO] O rastreador adicionou o seu arquivo com sucesso!\n");
             pthread_mutex_unlock(&stdout_lock);
             break;
         case 's':
@@ -218,21 +212,22 @@ void receive_packet()
             break;
         default:
             pthread_mutex_lock(&stdout_lock);
-            fprintf(stderr, "%s\n", "error - received packet type unknown.");
+            fprintf(stderr, "%s\n", "[ERRO] - Recebido pacote de tipo desconhecido.\n");
             pthread_mutex_unlock(&stdout_lock);
             break;
         }
     }
-        pthread_mutex_lock(&stdout_lock);
-        printf("Você foi desconectado por ter ficado %d segundos sem receber resposta.\n", num_tries * TIMER_SEC );
-        pthread_mutex_unlock(&stdout_lock);
+    pthread_mutex_lock(&stdout_lock);
+    printf("[AVISO] Você foi desconectado por ter ficado %d segundos sem receber resposta.\n", num_tries * TIMER_SEC );
+    pthread_mutex_unlock(&stdout_lock);
+    close(sock);
 
 }
 
 void request_available_peers()
 {
     pthread_mutex_lock(&stdout_lock);
-    fprintf(stderr, "%s\n", "Qual o arquivo você deseja fazer o download?");
+    fprintf(stderr, "%s\n", "[?] Qual o arquivo você deseja fazer o download?\n");
     pthread_mutex_unlock(&stdout_lock);
     char filename[MAX_FILENAME];
     scanf(" %[^\n]s",filename);
@@ -243,13 +238,11 @@ void request_available_peers()
     pkt.header.error = '\0';
     strcpy(pkt.msg, filename);
 
-
-    // send packet to tracker
     int status = sendto(sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&tracker_addr, sizeof(struct sockaddr_in));
     if (status < 0)
     {
         pthread_mutex_lock(&stdout_lock);
-        fprintf(stderr, "%s\n", "error - error sending packet to tracker");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao enviar pacote ao rastreador.\n.");
         pthread_mutex_unlock(&stdout_lock);
     }
 }
@@ -272,34 +265,37 @@ void send_file(packet *recv_pkt, struct sockaddr_in dest_addr)
     arq = fopen(recv_pkt->header.filename, "rb");
     if(arq == NULL)
     {
-        puts("Não foi possível abrir o arquivo");
+        puts("[ERRO] Não foi possível abrir o arquivo.\n");
     }
     else
     {
         pthread_mutex_unlock(&stdout_lock);
-        printf("Enviando arquivo %s para o requisitante.\n", recv_pkt->header.filename);
+        printf("[AVISO] Enviando arquivo %s para o requisitante.\n", recv_pkt->header.filename);
         pthread_mutex_unlock(&stdout_lock);
 
         long file_size;
         fseek(arq, 0, SEEK_END);
         file_size = ftell(arq);
         fseek(arq, 0, SEEK_SET);
+
         int fr;
         int numberPackets = file_size/MAX_MSG + 1;
+
         pthread_mutex_unlock(&stdout_lock);
         printf("numPacotes: %d\n", numberPackets);
         pthread_mutex_unlock(&stdout_lock);
 
         int i = 0;
         int seq = 0;
+        int max_tries = 0;
+        int status_packet = -1;
+        int flag = 0;
 
-
-
-        //enviando pacotes ao requisitante
         packet sendPacket;
         packet receivedPacket;
+
         pthread_mutex_lock(&stdout_lock);
-        for(seq = 0; seq < numberPackets; seq++)
+        for(seq = 0; seq < numberPackets; seq++) //enviando pacotes ao requisitante
         {
             //inicializa pacote
             sendPacket.header.ack = 0;
@@ -311,192 +307,217 @@ void send_file(packet *recv_pkt, struct sockaddr_in dest_addr)
                 sendPacket.header.ultimo = 1;
             else
                 sendPacket.header.ultimo = 0;
+            max_tries = 0;
+            flag = 0;
+            status_packet = -1;
             //fim da inicialização
 
             if ((fr = fread(sendPacket.msg, 1, MAX_MSG, arq)) < 0)
             {
-                perror("erro ao pegar bytes do arquivo\n");
+                perror("[ERRO] Erro ao pegar bytes do arquivo.\n");
             }
+
             sendPacket.header.message_size = fr;
-
-
             calc_checksum(&sendPacket); //Calcula o checksum do pacote atual
 
-
-            if (sendto(sock, &sendPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, sizeof(dest_addr)) < 0)
+            while(status_packet == -1 && max_tries != MAX_TRIES)
             {
-                perror("erro ao enviar pacote\n");
-            }
 
-            while(1)
-            {
-                // recebe o mesmo pacote que enviou pro cliente só que com ack = true preenchido pelo cliente
-                if(recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, &l) < 0)
+                if(flag == 0)
                 {
-                    perror("erro ao receber pacote\n");
+                    if (sendto(sock, &sendPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, sizeof(dest_addr)) < 0)
+                    {
+                        perror("[ERRO] Erro ao enviar pacote.\n");
+                    }
+                    flag = 1;
                 }
-
-                sendPacket.header.ack = receivedPacket.header.ack;
-
-                printf("seq: %d, checksum: %d, pacote.ack: %d\n", seq, sendPacket.header.checksum, sendPacket.header.ack);
-                // se ack == false cliente nao recebeu, entao manda de novo
-                if(sendPacket.header.ack == 0)
-                {
-                                    if (sendto(sock, &sendPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, sizeof(dest_addr)) < 0) {
-                    perror("erro ao enviar pacote\n");
-                }
-                }
-                // se ack == true sai do while e envia proximo pacote
                 else
                 {
-                    break;
+                    status_packet = recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, &l);
+                    if(flag > 2)
+                    {
+                        fprintf(stderr, "%s\n", "[AVISO] - Reenviando o pacote ao cliente.\n");
+                        flag = 0;
+                        max_tries++;
+                    }
+
+                    else if(status_packet == -1)
+                    {
+                        fprintf(stderr, "%s\n", "[ERRO] - Erro ao enviar pacote, cliente pode estar ocioso, ignorando.\n");
+                        flag++;
+                    }
+                    else if(status_packet > 0)
+                    {
+                        sendPacket.header.ack = receivedPacket.header.ack; //salva o ack recebido no próximo pacote a ser enviado
+                        printf("seq: %d, checksum: %d, pacote.ack: %d\n", seq, sendPacket.header.checksum, sendPacket.header.ack);
+                        if(sendPacket.header.ack == 0) // se ack for falso cliente nao recebeu, reenvia o pacote.
+                        {
+                            if (sendto(sock, &sendPacket, sizeof(packet), 0, (struct sockaddr * ) &dest_addr, sizeof(dest_addr)) < 0)
+                            {
+                                perror("[ERRO] Erro ao enviar pacote\n");
+                            }
+                        }
+                        // se ack for verdadeiro, sai do laço (while) e envia proximo pacote
+                        else
+                            break;
+                    }
                 }
             }
-            usleep(300);
 
+            if(max_tries == MAX_TRIES)
+            {
+                break; // sai do laço
+            }
         }
+
+        if(max_tries == MAX_TRIES)
+        {
+            perror("[ERRO] Numero de tentátivas de reenvio maximas alcançadas, encerrando envio do pacote.\n");
+            fclose(arq);
+            return;
+        }
+
         pthread_mutex_unlock(&stdout_lock);
-
-
         pthread_mutex_lock(&stdout_lock);
-        puts("arquivo enviado com sucesso!");
+        puts("[SUCESSO] Arquivo enviado com sucesso!\n");
         pthread_mutex_unlock(&stdout_lock);
         fclose(arq);
 
     }
-
-
-
-
-
 }
-
 
 void receive_file(packet *pkt, struct sockaddr_in sender_addr)
 {
-    // abre arquivo a ser escrito com os dados dos pacotes recebidos
-    int seqR = 0;
-    int checksum_ok = 0;
     FILE *f;
+    int seqReceived = 0;
+    int checksum_ok = 0;
     int status_packet = -1;
+    int num_tries = 0;
 
+    socklen_t l = sizeof(struct sockaddr);
+    packet sendPacket;
+    packet receivedPacket = *pkt;
 
     if(pkt->header.seq == 0)
     {
 
         f = fopen(pkt->header.filename, "wb");
+        if(f == NULL)
+        {
+            pthread_mutex_lock(&stdout_lock);
+            perror("[ERRO] Não foi possível criar o arquivo.\n");
+            pthread_mutex_unlock(&stdout_lock);
+            return;
+        }
     }
 
-    socklen_t l = sizeof(struct sockaddr);
-
-
-    packet sendPacket;
     pthread_mutex_lock(&stdout_lock);
-    packet receivedPacket = *pkt;
-    int num_tries = 0;
-
     while(1)
     {
 
-        if(seqR > 0)
+        if(seqReceived > 0)
         {
             bzero(&receivedPacket, sizeof(pkt));
-
-            if (recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr *)&sender_addr, &l) < 0)
+            num_tries = 0;
+            status_packet = recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr *)&sender_addr, &l);
+            while(status_packet == -1 && num_tries != MAX_TRIES)
             {
-                fprintf(stderr, "%s\n", "[erro] - erro ao receber pacote, ignorando.");
+                status_packet = recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr *)&sender_addr, &l);
+                if(status_packet == -1)
+                {
+                    fprintf(stderr, "%s\n", "[ERRO] - Erro ao receber pacote, nenhum dado recebido ou tempo limite esgotado, ignorando.\n");
+                    num_tries++;
+                }
+                else
+                {
+                    num_tries = 0;
+                }
+            }
+
+            if(num_tries == MAX_TRIES)
+            {
+                fprintf(stderr, "%s\n", "[ERRO] - Numero de tentativas permitidas atingidas, encerrado recebimento do arquivo.\n");
+                return; // retorna ao receive_packet()
             }
         }
 
         sendPacket = *pkt;
-
-        checksum_ok = check_checksum(pkt);
+        checksum_ok = check_checksum(pkt); // checa se o checksum dos pacotes batem.
 
         printf("seq %d, ack %d, checksum = %d, checksum_ok = %d, ultimo = %d\n", receivedPacket.header.seq, receivedPacket.header.ack, receivedPacket.header.checksum, checksum_ok, receivedPacket.header.ultimo); //Imprime informações referentes ao pacote recebido
 
-        // se checksum deu errado, pede novamente o mesmo pacote
-        while(checksum_ok != 1) {
+        while(checksum_ok != 1) // caso o checksum não bata, espera pelo reenvio do mesmo pacote
+        {
+            num_tries = 0;
             status_packet = recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr *)&sender_addr, &l);
-            if (status_packet < 0){
-                perror("erro ao receber pacote\n");
-                num_tries++;
-                if(num_tries == MAX_TRIES){
-                    perror("[2] Não obtivemos respostas, encerrando transferencia");
-                    return;
+            while(status_packet == -1 && num_tries != MAX_TRIES)
+            {
+                status_packet = recvfrom(sock, &receivedPacket, sizeof(packet), 0, (struct sockaddr *)&sender_addr, &l);
+                if(status_packet == -1)
+                {
+                    fprintf(stderr, "%s\n", "[ERRO] - Erro ao receber pacote, nenhum dado recebido ou tempo limite esgotado, ignorando.\n");
+                    num_tries++;
                 }
-            }else{
-                num_tries = 0;
+                else
+                {
+                    num_tries = 0;
+                }
+            }
+
+            if(num_tries == MAX_TRIES)
+            {
+                fprintf(stderr, "%s\n", "[ERRO] - Número de tentativas permitidas atingidas, encerrado recebimento do arquivo.\n");
+                pthread_mutex_unlock(&stdout_lock);
+                return; // retorna ao receive_packet()
             }
         }
 
 
-        if(seqR == receivedPacket.header.seq)
+        if(seqReceived == receivedPacket.header.seq)
         {
-            seqR++;
+            seqReceived++;
             sendPacket.header.ack = 1;
 
             if (sendto(sock, &sendPacket, sizeof(packet), 0, (struct sockaddr * ) &sender_addr, sizeof(sender_addr)) < 0)
             {
-                perror("erro ao enviar pacote\n");
+                perror("[ERRO] - Erro ao enviar pacote\n");
             }
 
-            // escreve arquivo
+            // escreve no arquivo
             if (fwrite(receivedPacket.msg, 1, receivedPacket.header.message_size, f) < 0)
             {
-                perror("erro ao escrever arquivo\n");
+                perror("[ERRO] - Erro em escrever no arquivo\n");
             }
 
-            // reseta pacote para ser preenchido com informações do proximo
+            // reseta msg do pacote.
             bzero(receivedPacket.msg, MAX_MSG);
         }
 
-        if(receivedPacket.header.ultimo == 1){
+        if(receivedPacket.header.ultimo == 1) //caso o pacote seja o último sai do laço de repetição
             break;
-        }
-
 
     }
-    puts("arquivo baixado com sucesso");
-    add_file_tracker(pkt->header.filename);
+    puts("[SUCESSO] Arquivo foi baixado com sucesso");
+    add_file_tracker(pkt->header.filename); //informa ao rastreador que agora o peer t ambém possui o pacote
     pthread_mutex_unlock(&stdout_lock);
     fclose(f);
     return;
-
-
-
-
-    // reseta pacote para ser preenchido com informações do proximo
-
-
-
-
-
-}
-
-void receive_message(struct sockaddr_in *sender_addr, packet *pkt)
-{
-    // fetch sender information
-    char *sender_ip = inet_ntoa(sender_addr->sin_addr);
-    short sender_port = htons(sender_addr->sin_port);
-
 }
 
 void request_file_to_peer(char file[FILENAME_MAX])
 {
 
     int port;
-    char ip[20];
+    char ip[INET_ADDRSTRLEN];
     bzero(ip, sizeof(ip));
 
-    printf("Digite o IP do destinatário\n");
+    printf("[?] Digite o IP do destinatário\n");
     scanf("%[^\n]s",ip);
 
-    printf("Digite a porta do destinatário\n");
+    printf("[?] Digite a porta do destinatário\n");
     scanf("%d", &port);
 
     memset(&peer_addr, 0, sizeof (peer_addr));
-
-    peer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     peer_addr.sin_family = AF_INET;
     peer_addr.sin_port = htons(port);
 
@@ -509,7 +530,7 @@ void request_file_to_peer(char file[FILENAME_MAX])
     if (status == -1)
     {
         pthread_mutex_lock(&stdout_lock);
-        fprintf(stderr, "%s\n", "error - error sending packet to tracker");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao enviar pacote ao rastreador.\n");
         pthread_mutex_unlock(&stdout_lock);
     }
 
@@ -517,13 +538,19 @@ void request_file_to_peer(char file[FILENAME_MAX])
 
 }
 
+/**
+void receive_available_peers(packet *recv_pkt)
+Função que irá receber as listas de usuários (peer) que possuem o arquivo requisitado,
+caso o pacote contenha error = 'e' ninguém tem o pacote, caso contrário,
+imprime os peers disponíveis
+**/
 void receive_available_peers(packet *recv_pkt)
 {
 
     pthread_mutex_lock(&stdout_lock);
     if(recv_pkt->header.error == 'e')
     {
-        puts("Parece que ninguém possui esse arquivo :(");
+        puts("Parece que ninguém possui esse arquivo :(\n");
 
     }
     else
@@ -536,7 +563,11 @@ void receive_available_peers(packet *recv_pkt)
     return;
 }
 
-void calc_checksum(packet *pct)   //Calcula a soma de verificacao
+/**
+void calc_checksum(packet *pct)
+calcula o checksum da mensagem,
+e retorna para o pacaote (passado como pointer)**/
+void calc_checksum(packet *pct)
 {
     unsigned int i, sum = 0;
     for (i = 0; i < MAX_MSG; i++)
@@ -548,6 +579,11 @@ void calc_checksum(packet *pct)   //Calcula a soma de verificacao
     pct->header.checksum = sum;
 }
 
+/**
+int check_checksum(packet *pct);
+Recebe um pacote, calcula o checksum da mensagem,
+caso seja igual retorna 1
+caso contrário retorna 0 **/
 int check_checksum(packet *pct)
 {
     unsigned int i, sum = 0;

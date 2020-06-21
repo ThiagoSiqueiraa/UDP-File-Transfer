@@ -7,11 +7,13 @@
 ╚██████╔╝██║ ╚████║██║██║     ███████╗██║                 ██║   ██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║██╗╚██████╗
  ╚═════╝ ╚═╝  ╚═══╝╚═╝╚═╝     ╚══════╝╚═╝                 ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
 Trabalho desenvolvido por:
-Thiago Donizeti Siqueira - 2018012355
-João Pedro Josué -
-João Guilherme -
+THIAGO DONIZETI SIQUEIRA : 2018012355
+JOÃO PEDRO JOSUÉ : 2018011044
+JOÃO GUILHERME TERTULIANO DE OLIVEIRA : 2019000706
 
 Instruções de uso em: https://github.com/ThiagoSiqueiraa/UDP-File-Transfer
+
+ou também em README.TXT
 
 ***/
 
@@ -31,7 +33,7 @@ Instruções de uso em: https://github.com/ThiagoSiqueiraa/UDP-File-Transfer
 #include "message.h"
 
 
-
+/** PROTOTIPOS DAS FUNÇÕES **/
 void *handlePacket(void *args);
 void user_add(struct sockaddr_in client, packet pkt);
 void list_peer(struct sockaddr_in client, packet recv_pkt);
@@ -54,11 +56,11 @@ int main(int argc, char*argv[])
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == -1)
     {
-        printf("[error] - Não foi possível criar o soquete, há algo errado com o seu sistema :(");
+        printf("[ERRO] - Não foi possível criar o soquete, há algo errado com o seu sistema :(");
         return 1;
     }
 
-    puts("Socket criado");
+    puts("[SUCESSO] Socket criado");
 
     //limpando a memoria e preparando a estrutura do socket do servidor.
     memset(&serv_sck, 0, sizeof(serv_sck));
@@ -70,13 +72,12 @@ int main(int argc, char*argv[])
     //Bind socket
     if( bind(sock,(struct sockaddr *)&serv_sck, sizeof(serv_sck)) < 0)
     {
-        //print the error message
-        perror("[error] - Falha ao bindar socket :(");
+        perror("[ERRO] - Falha ao bindar socket :(");
         return 1;
     }
-    puts("Bind concluída");
+    puts("[SUCESSO] Bind concluída");
 
-    puts("Tudo certo, aguardando conexões...");
+    puts("[SUCESSO] Tudo certo, aguardando conexões...");
     int clientlen = sizeof(client_sock);
     packet recv_pkt;
     while(1)
@@ -86,7 +87,7 @@ int main(int argc, char*argv[])
         n = recvfrom(sock, &recv_pkt, sizeof(recv_pkt), 0, (struct sockaddr *)&client_sock, &clientlen);
         if(n < 0)
         {
-            perror("[error] Ao tentar acertar o pacote :(");
+            perror("[ERRO] Ao tentar receber pacote :(\n");
         }
         else
         {
@@ -95,7 +96,7 @@ int main(int argc, char*argv[])
             hostaddrp = inet_ntoa(client_sock.sin_addr);
             if(hostaddrp == NULL)
                 return 1;
-            puts("Conexão com cliente aceita!");
+            puts("[SUCESSO] Conexão com cliente aceita!");
             switch(recv_pkt.header.type)
             {
             case 'l':
@@ -105,19 +106,16 @@ int main(int argc, char*argv[])
                 user_add(client_sock, recv_pkt);
                 break;
             default:
-                fprintf(stderr, "%s", "erro ao receber pacote, ignorando");
+                fprintf(stderr, "%s", "[ERRO] - Erro ao receber pacote, ignorando\n");
                 break;
             }
         }
     }
 
-    close(n);
+    close(sock);
 
     return 0;
 }
-
-/* Add user to userList */
-
 
 struct sockaddr_in get_sockaddr_in(unsigned int ip, short port)
 {
@@ -219,7 +217,7 @@ void list_peer(struct sockaddr_in client_sock, packet recv_pkt)
 
     if (status == -1)
     {
-        fprintf(stderr, "%s\n", "error - error sending packet to peer");
+        fprintf(stderr, "%s\n", "[ERRO] - Erro ao enviar pacote para o peer.");
     }
 
 }
