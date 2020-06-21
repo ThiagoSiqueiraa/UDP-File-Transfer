@@ -1,11 +1,28 @@
+/***
+
+██╗   ██╗███╗   ██╗██╗███████╗███████╗██╗              ████████╗██████╗  █████╗  ██████╗██╗  ██╗███████╗██████╗     ██████╗
+██║   ██║████╗  ██║██║██╔════╝██╔════╝██║              ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗   ██╔════╝
+██║   ██║██╔██╗ ██║██║█████╗  █████╗  ██║    █████╗       ██║   ██████╔╝███████║██║     █████╔╝ █████╗  ██████╔╝   ██║
+██║   ██║██║╚██╗██║██║██╔══╝  ██╔══╝  ██║    ╚════╝       ██║   ██╔══██╗██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗   ██║
+╚██████╔╝██║ ╚████║██║██║     ███████╗██║                 ██║   ██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║██╗╚██████╗
+ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚═╝     ╚══════╝╚═╝                 ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝ ╚═════╝
+Trabalho desenvolvido por:
+Thiago Donizeti Siqueira - 2018012355
+João Pedro Josué -
+João Guilherme -
+
+Instruções de uso em: https://github.com/ThiagoSiqueiraa/UDP-File-Transfer
+
+***/
+
 #include<pthread.h>
 #include<sys/socket.h>
 #include<sys/types.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
-#include<string.h>    //strlen, puts
+#include<arpa/inet.h>
+#include<unistd.h>
+#include<string.h>
 #include<stdio.h>
-#include<stdlib.h> //exit
+#include<stdlib.h>
 #include<netinet/in.h>
 #include<stdlib.h>
 #include<pthread.h>
@@ -13,28 +30,19 @@
 #include<string.h>
 #include "message.h"
 
-#define NUM_OF_USERS 10 //total number of users that can be register
-#define MAX_USERS 50
 
 
 void *handlePacket(void *args);
 void user_add(struct sockaddr_in client, packet pkt);
 void list_peer(struct sockaddr_in client, packet recv_pkt);
+static peer listOfPeerFiles[MAX_FILES]; //array global que guardara os usuários que possuem tal arquivo
+int sock;
 
-static unsigned int users_count = 0;
-static peer listOfPeerFiles[MAX_FILES]; //global array of connected users to the system. notice the {0}initializer it is very important!
-static int port_cnt = 0;
-
-
-int socket_fd;
-pthread_mutex_t stdout_lock;
-
-int main(int argc, char*argv[]) //***check all if for exit the program or not.
+int main(int argc, char*argv[])
 {
 
     memset(listOfPeerFiles,0,MAX_FILES*sizeof(peer));
 
-    /*Define vars for communication*/
     int client_fd;
     struct sockaddr_in serv_sck,client_sock;
     int n;
@@ -43,8 +51,8 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
     char *hostaddrp;
 
     /*******************************/
-    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);   //SOCK stream used for TCP Connections
-    if (socket_fd == -1)
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock == -1)
     {
         printf("[error] - Não foi possível criar o soquete, há algo errado com o seu sistema :(");
         return 1;
@@ -52,16 +60,15 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
 
     puts("Socket criado");
 
-    //clear! and Prepare the sockaddr_in structure
-    // bzero((char *) &serv_sck, sizeof(serv_sck));
+    //limpando a memoria e preparando a estrutura do socket do servidor.
     memset(&serv_sck, 0, sizeof(serv_sck));
 
-    serv_sck.sin_family = AF_INET; //IPv4 Structure
-    serv_sck.sin_addr.s_addr = htonl(INADDR_ANY); //opened to any IP
-    serv_sck.sin_port = htons( C_SRV_PORT ); //port num defined in chat.h
+    serv_sck.sin_family = AF_INET; //FAMILIA IPV4
+    serv_sck.sin_addr.s_addr = htonl(INADDR_ANY); //aberto para qualquer ip
+    serv_sck.sin_port = htons( SRV_PORT ); //numero de porta definida em message.h
 
     //Bind socket
-    if( bind(socket_fd,(struct sockaddr *)&serv_sck, sizeof(serv_sck)) < 0)
+    if( bind(sock,(struct sockaddr *)&serv_sck, sizeof(serv_sck)) < 0)
     {
         //print the error message
         perror("[error] - Falha ao bindar socket :(");
@@ -76,7 +83,7 @@ int main(int argc, char*argv[]) //***check all if for exit the program or not.
     {
         memset(&client_sock, 0, sizeof(client_sock));
         memset(&recv_pkt, 0, sizeof(recv_pkt));
-        n = recvfrom(socket_fd, &recv_pkt, sizeof(recv_pkt), 0, (struct sockaddr *)&client_sock, &clientlen);
+        n = recvfrom(sock, &recv_pkt, sizeof(recv_pkt), 0, (struct sockaddr *)&client_sock, &clientlen);
         if(n < 0)
         {
             perror("[error] Ao tentar acertar o pacote :(");
@@ -156,7 +163,7 @@ void user_add(struct sockaddr_in client, packet p_pkt)
     }
 
     struct sockaddr_in peer_addr = get_sockaddr_in(ip, port);
-    int status = sendto(socket_fd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
+    int status = sendto(sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
     if (status < 0)
     {
         perror("[error] - Erro ao enviar pacote para o peer");
@@ -205,15 +212,14 @@ void list_peer(struct sockaddr_in client_sock, packet recv_pkt)
     }
     else
     {
+        strcpy(pkt.header.filename, recv_pkt.msg);
         strcpy(pkt.msg, list);
     }
-    int status = sendto(socket_fd, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
+    int status = sendto(sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
 
     if (status == -1)
     {
-        pthread_mutex_lock(&stdout_lock);
         fprintf(stderr, "%s\n", "error - error sending packet to peer");
-        pthread_mutex_unlock(&stdout_lock);
     }
 
 }

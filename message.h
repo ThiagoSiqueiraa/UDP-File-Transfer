@@ -1,10 +1,11 @@
-#define C_SRV_PORT 	12360
+#define SRV_PORT 	13360
 #define MAX_MSG 1024
-#define MAX_FILENAME 200
+#define MAX_FILENAME 50
 #define MAX_FILES 999
 #ifndef MESSAGE_H_INCLUDED
 #define MESSAGE_H_INCLUDED
-
+#define TIMER_SEC 20
+#define MAX_TRIES 3
 typedef struct peer_t{
     char *ip;
     int port;
@@ -19,7 +20,8 @@ typedef struct message_header_t
     int checksum;
     char type;
     char error;
-    unsigned int msg_length;
+    char filename[MAX_FILENAME];
+    int message_size;
 } message_header;
 
 typedef struct packet_t
